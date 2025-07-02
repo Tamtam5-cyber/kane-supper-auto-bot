@@ -519,19 +519,34 @@ async def spam_contacts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Hiển thị cấu hình và nút điều khiển
     await show_config(update, context)
-    
-    # Vòng lặp spam
-    while config["is_spamming"]:
-        for phone in phone_numbers:
-            config = get_user_config(chat_id, conn)
-            if not config["is_spamming"]:
-                break
-            if is_number_spammed(chat_id, phone, conn):
-                continue  # Bỏ qua số đã spam
-            
-            try:
-                # Tìm user ID từ số điện thoại
-                client = telethon_clients[chat_id]
-                contact = await client.get_entity(phone)
-                await context.bot.send_message(chat_id=contact.id, text="Đây là tin nhắn spam!")
-                save_spammed_number(chat_id, phone, conn)  # Đán
+
+# Vòng lặp spam
+while config["is_spamming"]:
+    for phone in phone_numbers:
+        config = get_user_config(chat_id, conn)
+        if not config["is_spamming"]:
+            break
+        if is_number_spammed(chat_id, phone, conn):
+            continue  # Bỏ qua số đã spam
+
+        try:
+            # Tìm user ID từ số điện thoại
+            client = telethon_clients[chat_id]
+            contact = await client.get_entity(phone)
+            await context.bot.send_message(chat_id=contact.id, text="Đây là tin nhắn spam!")
+            save_spammed_number(chat_id, phone, conn)  # Đánh dấu số đã spam
+        except Exception as e:
+            await update.message.reply_text(f"Lỗi khi spam số {phone}: {str(e)}")
+
+        await asyncio.sleep(config["delay"])
+
+    # Nếu không lặp lại thì dừng
+    config = get_user_config(chat_id, conn)
+    if not config["replay"]:
+        break
+    await asyncio.sleep(config["delay_replay"])
+
+config = get_user_config(chat_id, conn)
+config["is_spamming"] = False
+save_user_config(chat_id, config, conn)
+await update.message.reply_text("Đã dừng spam.")
